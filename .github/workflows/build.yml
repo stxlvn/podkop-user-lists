@@ -5,7 +5,10 @@ on:
     branches: [master]
     paths:
       - "data/**"
+      - "scripts/**"
       - ".github/workflows/build.yml"
+  schedule:
+    - cron: "0 3 * * *"  # ежедневно, подхватывает обновления itdoginfo/MetaCubeX
   workflow_dispatch:
 
 jobs:
@@ -24,22 +27,12 @@ jobs:
           sudo mv sing-box-*/sing-box /usr/local/bin/sing-box
           sing-box version
 
-      - name: Build domains.srs
-        run: |
-          python3 - << 'EOF'
-          import json
-          domains = [l.strip() for l in open("data/domains.lst") if l.strip()]
-          json.dump({"version": 3, "rules": [{"domain_suffix": domains}]}, open("domains.json", "w"))
-          EOF
-          sing-box rule-set compile domains.json -o domains.srs
+      - name: Fetch upstream + merge with own lists
+        run: python3 scripts/merge.py
 
-      - name: Build subnets.srs
+      - name: Compile rule-sets
         run: |
-          python3 - << 'EOF'
-          import json
-          subnets = [l.strip() for l in open("data/subnets.lst") if l.strip()]
-          json.dump({"version": 3, "rules": [{"ip_cidr": subnets}]}, open("subnets.json", "w"))
-          EOF
+          sing-box rule-set compile domains.json -o domains.srs
           sing-box rule-set compile subnets.json -o subnets.srs
 
       - name: Release

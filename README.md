@@ -1,11 +1,17 @@
 # podkop-user-lists
 
-Личные списки доменов/подсетей для роутинга через Podkop (sing-box), не покрытые готовыми community-списками ([itdoginfo/allow-domains](https://github.com/itdoginfo/allow-domains), [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat)).
+Личные списки доменов/подсетей для роутинга через Podkop (sing-box).
 
-- `data/domains.lst` — домены, по одному на строку
-- `data/subnets.lst` — подсети (CIDR), по одной на строку
+- `data/own_domains.lst` — свои домены (правится руками), по одному на строку
+- `data/own_subnets.lst` — свои подсети (CIDR), по одной на строку
 
-При каждом пуше в `data/` GitHub Actions собирает `domains.srs` и `subnets.srs` (формат sing-box rule-set) и публикует их в [Release `latest`](../../releases/latest).
+GitHub Actions (`.github/workflows/build.yml`) каждый день, а также при пуше в
+`data/`, скачивает актуальные списки [itdoginfo/allow-domains](https://github.com/itdoginfo/allow-domains)
+(cloudflare, cloudfront, digitalocean, meta, discord, google_ai, hetzner,
+hodca, ovh, roblox, russia_inside, telegram, google_play) и `google.srs` от
+[MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat),
+сливает их со своими списками, чистит дубли/битые записи и публикует
+`domains.srs` + `subnets.srs` в [Release `latest`](../../releases/latest).
 
 ## Использование в Podkop
 
