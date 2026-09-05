@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
-"""Скачивает enabled-списки itdoginfo + google.srs от MetaCubeX, декомпилирует
+"""Скачивает enabled-списки itdoginfo + отдельные экстра-источники, декомпилирует
 через sing-box, сливает с data/own_domains.lst и data/own_subnets.lst,
-пишет итог в domains.json / subnets.json (source-формат для sing-box compile)."""
+пишет итог в domains.json / subnets.json (source-формат для sing-box compile).
+
+ВАЖНО про размер subnets: помимо попадания в rule_set самого sing-box,
+subnets.srs ЕЩЁ парсится Podkop'ом и КАЖДЫЙ элемент добавляется в nftables-сет
+podkop_subnets (шлюз перехвата пакетов по IP — нужен для прямых IP-подключений
+вроде Telegram MTProto, которые идут в обход DNS/fakeip). На слабом роутере
+десятки тысяч элементов эту операцию не тянут — сет остаётся пустым, и такие
+подключения тихо перестают тоннелироваться. Поэтому в subnets держим только
+itdoginfo-списки + свои — компактно и быстро добавляется в nft. Домены
+ограничения на размер не имеют (fakeip/sniff, не nftables-сет), поэтому туда
+можно смело подмешивать что угодно."""
 import ipaddress
 import json
 import subprocess
@@ -13,13 +23,16 @@ ITDOG_LISTS = [
     "telegram", "google_play",
 ]
 ITDOG_URL = "https://github.com/itdoginfo/allow-domains/releases/latest/download/{}.srs"
-METACUBE_URL = "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/refs/heads/sing/geo/geoip/google.srs"
 
-# отдельные remote-списки, которые раньше подключались напрямую в Podkop
-EXTRA_URLS = [
+# домены — сюда можно тащить сколько угодно, ограничений нет
+DOMAIN_ONLY_EXTRA_URLS = [
     "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/spotify.srs",
-    "https://raw.githubusercontent.com/mudachyo/IP-Ranger/main/ip-lists/ALL-IN-ONE/all-in-one.srs",
 ]
+
+# подсети — НЕ добавляем сюда всё подряд (google.srs 8k+, all-in-one 20k+
+# записей) — см. пояснение в начале файла. Если понадобится точечно —
+# добавлять руками в data/own_subnets.lst, не сюда.
+SUBNET_ONLY_EXTRA_URLS = []
 
 
 def fetch(url, dest):
@@ -31,13 +44,18 @@ def decompile(srs_path, json_path):
                     check=True, capture_output=True)
 
 
-def extract(json_path, domains, subnets):
+def extract_domains(json_path, domains):
     data = json.load(open(json_path))
     for rule in data.get("rules", []):
         for d in rule.get("domain", []):
             domains.add(d)
         for d in rule.get("domain_suffix", []):
             domains.add(d)
+
+
+def extract_subnets(json_path, subnets):
+    data = json.load(open(json_path))
+    for rule in data.get("rules", []):
         for c in rule.get("ip_cidr", []):
             try:
                 ipaddress.ip_network(c, strict=False)
@@ -53,17 +71,20 @@ def main():
         srs, js = f"/tmp/{name}.srs", f"/tmp/{name}.json"
         fetch(ITDOG_URL.format(name), srs)
         decompile(srs, js)
-        extract(js, domains, subnets)
+        extract_domains(js, domains)
+        extract_subnets(js, subnets)
 
-    fetch(METACUBE_URL, "/tmp/google_meta.srs")
-    decompile("/tmp/google_meta.srs", "/tmp/google_meta.json")
-    extract("/tmp/google_meta.json", domains, subnets)
-
-    for i, url in enumerate(EXTRA_URLS):
-        srs, js = f"/tmp/extra{i}.srs", f"/tmp/extra{i}.json"
+    for i, url in enumerate(DOMAIN_ONLY_EXTRA_URLS):
+        srs, js = f"/tmp/dextra{i}.srs", f"/tmp/dextra{i}.json"
         fetch(url, srs)
         decompile(srs, js)
-        extract(js, domains, subnets)
+        extract_domains(js, domains)
+
+    for i, url in enumerate(SUBNET_ONLY_EXTRA_URLS):
+        srs, js = f"/tmp/sextra{i}.srs", f"/tmp/sextra{i}.json"
+        fetch(url, srs)
+        decompile(srs, js)
+        extract_subnets(js, subnets)
 
     domains.update(l.strip() for l in open("data/own_domains.lst") if l.strip())
     subnets.update(l.strip() for l in open("data/own_subnets.lst") if l.strip())
