@@ -2,9 +2,10 @@ name: Build and release rule-sets
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "data/**"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 jobs:
