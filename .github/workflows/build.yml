@@ -1,0 +1,52 @@
+name: Build and release rule-sets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install sing-box
+        run: |
+          curl -fsSL -o sing-box.tar.gz \
+            "https://github.com/SagerNet/sing-box/releases/latest/download/sing-box-$(curl -fsSL https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "v\K[^"]+')-linux-amd64.tar.gz"
+          tar xzf sing-box.tar.gz
+          sudo mv sing-box-*/sing-box /usr/local/bin/sing-box
+          sing-box version
+
+      - name: Build domains.srs
+        run: |
+          python3 - << 'EOF'
+          import json
+          domains = [l.strip() for l in open("data/domains.lst") if l.strip()]
+          json.dump({"version": 3, "rules": [{"domain_suffix": domains}]}, open("domains.json", "w"))
+          EOF
+          sing-box rule-set compile domains.json -o domains.srs
+
+      - name: Build subnets.srs
+        run: |
+          python3 - << 'EOF'
+          import json
+          subnets = [l.strip() for l in open("data/subnets.lst") if l.strip()]
+          json.dump({"version": 3, "rules": [{"ip_cidr": subnets}]}, open("subnets.json", "w"))
+          EOF
+          sing-box rule-set compile subnets.json -o subnets.srs
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: latest
+          files: |
+            domains.srs
+            subnets.srs
+          make_latest: true
