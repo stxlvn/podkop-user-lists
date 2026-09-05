@@ -15,6 +15,12 @@ ITDOG_LISTS = [
 ITDOG_URL = "https://github.com/itdoginfo/allow-domains/releases/latest/download/{}.srs"
 METACUBE_URL = "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/refs/heads/sing/geo/geoip/google.srs"
 
+# отдельные remote-списки, которые раньше подключались напрямую в Podkop
+EXTRA_URLS = [
+    "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/spotify.srs",
+    "https://raw.githubusercontent.com/mudachyo/IP-Ranger/main/ip-lists/ALL-IN-ONE/all-in-one.srs",
+]
+
 
 def fetch(url, dest):
     urllib.request.urlretrieve(url, dest)
@@ -52,6 +58,12 @@ def main():
     fetch(METACUBE_URL, "/tmp/google_meta.srs")
     decompile("/tmp/google_meta.srs", "/tmp/google_meta.json")
     extract("/tmp/google_meta.json", domains, subnets)
+
+    for i, url in enumerate(EXTRA_URLS):
+        srs, js = f"/tmp/extra{i}.srs", f"/tmp/extra{i}.json"
+        fetch(url, srs)
+        decompile(srs, js)
+        extract(js, domains, subnets)
 
     domains.update(l.strip() for l in open("data/own_domains.lst") if l.strip())
     subnets.update(l.strip() for l in open("data/own_subnets.lst") if l.strip())
