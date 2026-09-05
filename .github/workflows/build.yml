@@ -32,15 +32,15 @@ jobs:
 
       - name: Compile rule-sets
         run: |
-          sing-box rule-set compile domains.json -o domains.srs
-          sing-box rule-set compile subnets.json -o subnets.srs
+          mkdir -p dist
+          sing-box rule-set compile domains.json -o dist/domains.srs
+          sing-box rule-set compile subnets.json -o dist/subnets.srs
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: latest
-          files: |
-            domains.srs
-            subnets.srs
-          make_latest: true
+      - name: Commit compiled rule-sets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f dist/domains.srs dist/subnets.srs
+          git diff --staged --quiet && exit 0
+          git commit -m "Rebuild dist/*.srs [skip ci]"
+          git push
