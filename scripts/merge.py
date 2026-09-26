@@ -22,6 +22,7 @@ ITDOG_URL = "https://github.com/itdoginfo/allow-domains/releases/latest/download
 DOMAIN_ONLY_EXTRA_URLS = [
     "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/spotify.srs",
     "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/sing-box/rule-set-geosite/geosite-ru-blocked.srs",
+    "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/microsoft.srs",
 ]
 
 SUBNET_ONLY_EXTRA_URLS = [
