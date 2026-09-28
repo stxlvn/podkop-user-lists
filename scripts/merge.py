@@ -8,6 +8,7 @@
 старта роутера линейно зависит от числа строк."""
 import ipaddress
 import json
+import re
 import subprocess
 import urllib.request
 
@@ -28,6 +29,55 @@ DOMAIN_ONLY_EXTRA_URLS = [
 SUBNET_ONLY_EXTRA_URLS = [
     "https://raw.githubusercontent.com/mudachyo/IP-Ranger/main/ip-lists/ALL-IN-ONE/all-in-one.srs",
 ]
+
+
+DOMAIN_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
+
+def warn(path, num, line):
+    print(f"::warning file={path},line={num}::пропущена некорректная строка: {line.strip()}")
+
+
+def check_trailing_newline(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    if data and not data.endswith(b"\n"):
+        print(f"::warning file={path}::файл не заканчивается переводом строки — "
+              f"дописывание в конец склеит новую запись с последней")
+
+
+def read_own_domains(path):
+    check_trailing_newline(path)
+    out, skipped = set(), 0
+    for num, line in enumerate(open(path), 1):
+        s = line.split("#", 1)[0].strip().lower()
+        if not s:
+            continue
+        if DOMAIN_RE.match(s) and all(len(p) <= 63 for p in s.split(".")):
+            out.add(s)
+        else:
+            warn(path, num, line)
+            skipped += 1
+    if skipped:
+        print(f"  {path}: пропущено строк: {skipped}")
+    return out
+
+
+def read_own_subnets(path):
+    check_trailing_newline(path)
+    out, skipped = set(), 0
+    for num, line in enumerate(open(path), 1):
+        s = line.split("#", 1)[0].strip()
+        if not s:
+            continue
+        try:
+            out.add(str(ipaddress.ip_network(s, strict=False)))
+        except ValueError:
+            warn(path, num, line)
+            skipped += 1
+    if skipped:
+        print(f"  {path}: пропущено строк: {skipped}")
+    return out
 
 
 def source_label(url):
@@ -126,11 +176,9 @@ def main():
         decompile(srs, js)
         merge(source_label(url), extract_subnets(js), subnets, subnet_report)
 
-    merge("data/own_domains.lst",
-          {l.strip() for l in open("data/own_domains.lst") if l.strip()},
+    merge("data/own_domains.lst", read_own_domains("data/own_domains.lst"),
           domains, domain_report)
-    merge("data/own_subnets.lst",
-          {l.strip() for l in open("data/own_subnets.lst") if l.strip()},
+    merge("data/own_subnets.lst", read_own_subnets("data/own_subnets.lst"),
           subnets, subnet_report)
 
     print_report("ДОМЕНЫ", domain_report, len(domains))

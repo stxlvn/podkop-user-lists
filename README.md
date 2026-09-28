@@ -5,6 +5,11 @@
 - `data/own_domains.lst` — свои домены (правится руками), по одному на строку
 - `data/own_subnets.lst` — свои подсети (CIDR), по одной на строку
 
+Пустые строки и всё после `#` игнорируются. Некорректная строка не роняет
+сборку: она пропускается, а в лог Action попадает предупреждение с привязкой
+к номеру строки. Отдельно проверяется перевод строки в конце файла — без него
+дописывание в конец склеивает новую запись с последней.
+
 GitHub Actions (`.github/workflows/build.yml`) каждый день, а также при пуше в
 `data/`, скачивает актуальные списки [itdoginfo/allow-domains](https://github.com/itdoginfo/allow-domains)
 (cloudflare, cloudfront, digitalocean, meta, discord, google_ai, hetzner,
