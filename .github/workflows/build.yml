@@ -17,12 +17,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install sing-box
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          curl -fsSL -o sing-box.tar.gz \
-            "https://github.com/SagerNet/sing-box/releases/latest/download/sing-box-$(curl -fsSL https://api.github.com/repos/SagerNet/sing-box/releases/latest | grep -oP '"tag_name": "v\K[^"]+')-linux-amd64.tar.gz"
+          for i in 1 2 3; do
+            gh release download -R SagerNet/sing-box --pattern 'sing-box-*-linux-amd64.tar.gz' -O sing-box.tar.gz --clobber && break
+            sleep $((i * 15))
+          done
           tar xzf sing-box.tar.gz
           sudo mv sing-box-*/sing-box /usr/local/bin/sing-box
           sing-box version
