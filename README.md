@@ -16,11 +16,19 @@ GitHub Actions (`.github/workflows/build.yml`) каждый день, а так�
 hodca, ovh, roblox, russia_inside, telegram, google_play) и `google.srs` от
 [MetaCubeX/meta-rules-dat](https://github.com/MetaCubeX/meta-rules-dat),
 сливает их со своими списками, чистит дубли/битые записи и публикует
-`domains.srs` + `subnets.srs` в [Release `latest`](../../releases/latest).
+`domains.srs` + `subnets.srs` (sing-box) и `domains.trs` + `subnets.trs`
+(формат tachyon-core, грузится быстрее) в [Release `latest`](../../releases/latest).
 
 ## Использование в Podkop
 
 ```
 remote_domain_lists: https://github.com/<owner>/podkop-user-lists/releases/latest/download/domains.srs
 remote_subnet_lists: https://github.com/<owner>/podkop-user-lists/releases/latest/download/subnets.srs
+```
+
+Для Tachyon с ядром tachyon-core те же списки в `.trs`:
+
+```
+https://raw.githubusercontent.com/<owner>/podkop-user-lists/master/dist/domains.trs
+https://raw.githubusercontent.com/<owner>/podkop-user-lists/master/dist/subnets.trs
 ```

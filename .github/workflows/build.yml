@@ -31,6 +31,21 @@ jobs:
           sudo mv sing-box-*/sing-box /usr/local/bin/sing-box
           sing-box version
 
+      - name: Install tachyon-core
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in 1 2 3; do
+            gh release download -R Dushnilin/tachyon-core --pattern 'tachyon-core-linux-amd64-*.tar.gz' --pattern SHA256SUMS --clobber && break
+            sleep $((i * 15))
+          done
+          tar xzf tachyon-core-linux-amd64-*.tar.gz
+          bin=$(ls tachyon-core-linux-amd64-v* | grep -v '\.tar\.gz$')
+          grep " ./$bin\$" SHA256SUMS | sha256sum -c
+          sudo install -m 755 "$bin" /usr/local/bin/tachyon-core
+          rm -f tachyon-core-linux-amd64-* SHA256SUMS
+          tachyon-core version
+
       - name: Fetch upstream + merge with own lists
         run: python3 scripts/merge.py
 
@@ -39,14 +54,16 @@ jobs:
           mkdir -p dist
           sing-box rule-set compile domains.json -o dist/domains.srs
           sing-box rule-set compile subnets.json -o dist/subnets.srs
+          tachyon-core rule-set compile domains.json -o dist/domains.trs
+          tachyon-core rule-set compile subnets.json -o dist/subnets.trs
 
       - name: Commit compiled rule-sets
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f dist/domains.srs dist/subnets.srs
+          git add -f dist/domains.srs dist/subnets.srs dist/domains.trs dist/subnets.trs
           git diff --staged --quiet && exit 0
-          git commit -m "Rebuild dist/*.srs [skip ci]"
+          git commit -m "Rebuild dist/*.srs, dist/*.trs [skip ci]"
           git push
 
       # Роутер качает списки с raw.githubusercontent, а не отсюда: uclient-fetch
@@ -58,5 +75,5 @@ jobs:
           gh release view latest >/dev/null 2>&1 || gh release create latest \
             --title "latest" \
             --notes "Скомпилированные rule-set'ы. Пересобираются автоматически, ассеты перезаписываются на месте."
-          gh release upload latest dist/domains.srs dist/subnets.srs --clobber
+          gh release upload latest dist/domains.srs dist/subnets.srs dist/domains.trs dist/subnets.trs --clobber
           gh release edit latest --notes "Обновлено: $(date -u '+%Y-%m-%d %H:%M UTC') • $(git rev-parse --short HEAD)"
