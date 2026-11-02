@@ -25,6 +25,8 @@ DOMAIN_ONLY_EXTRA_URLS = [
     "https://raw.githubusercontent.com/runetfreedom/russia-v2ray-rules-dat/release/sing-box/rule-set-geosite/geosite-ru-blocked.srs",
     "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/microsoft.srs",
     "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/google.srs",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/sing-box/geoblock.srs",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/sing-box/ai_all.srs",
 ]
 
 SUBNET_ONLY_EXTRA_URLS = [
