@@ -31,6 +31,16 @@ DOMAIN_ONLY_EXTRA_URLS = [
 
 SUBNET_ONLY_EXTRA_URLS = [
     "https://raw.githubusercontent.com/mudachyo/IP-Ranger/main/ip-lists/ALL-IN-ONE/all-in-one.srs",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/sing-box/twitter.srs",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/sing-box/telegram.srs",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/sing-box/meta.srs",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/sing-box/discord.srs",
+]
+
+# в .srs этих списков подсетей нет, они лежат только плоскими .lst
+SUBNET_LST_URLS = [
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/subnets/ru_blocked.lst",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/subnets/refilter.lst",
 ]
 
 
@@ -119,6 +129,19 @@ def extract_subnets(json_path):
     return found
 
 
+def read_subnet_lst(path):
+    found = set()
+    for line in open(path):
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        try:
+            found.add(str(ipaddress.ip_network(line, strict=False)))
+        except ValueError:
+            pass
+    return found
+
+
 def merge(label, found, target, report):
     """Складывает найденное в target и запоминает вклад источника."""
     new = found - target
@@ -178,6 +201,11 @@ def main():
         fetch(url, srs)
         decompile(srs, js)
         merge(source_label(url), extract_subnets(js), subnets, subnet_report)
+
+    for i, url in enumerate(SUBNET_LST_URLS):
+        lst = f"/tmp/slst{i}.lst"
+        fetch(url, lst)
+        merge(source_label(url), read_subnet_lst(lst), subnets, subnet_report)
 
     merge("data/own_domains.lst", read_own_domains("data/own_domains.lst"),
           domains, domain_report)
