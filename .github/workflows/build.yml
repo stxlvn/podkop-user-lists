@@ -34,9 +34,10 @@ jobs:
       - name: Install tachyon-core
         env:
           GH_TOKEN: ${{ github.token }}
+          TACHYON_CORE_TAG: v0.3.1
         run: |
           for i in 1 2 3; do
-            gh release download -R Dushnilin/tachyon-core --pattern 'tachyon-core-linux-amd64-*.tar.gz' --pattern SHA256SUMS --clobber && break
+            gh release download "$TACHYON_CORE_TAG" -R Dushnilin/tachyon-core --pattern 'tachyon-core-linux-amd64-*.tar.gz' --pattern SHA256SUMS --clobber && break
             sleep $((i * 15))
           done
           tar xzf tachyon-core-linux-amd64-*.tar.gz
