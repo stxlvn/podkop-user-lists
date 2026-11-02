@@ -57,12 +57,16 @@ jobs:
           sing-box rule-set compile subnets.json -o dist/subnets.srs
           tachyon-core rule-set compile domains.json -o dist/domains.trs
           tachyon-core rule-set compile subnets.json -o dist/subnets.trs
+          for f in russia-domains russia-subnets; do
+            sing-box rule-set compile $f.json -o dist/$f.srs
+            tachyon-core rule-set compile $f.json -o dist/$f.trs
+          done
 
       - name: Commit compiled rule-sets
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f dist/domains.srs dist/subnets.srs dist/domains.trs dist/subnets.trs
+          git add -f dist/*.srs dist/*.trs
           git diff --staged --quiet && exit 0
           git commit -m "Rebuild dist/*.srs, dist/*.trs [skip ci]"
           git push
@@ -76,5 +80,5 @@ jobs:
           gh release view latest >/dev/null 2>&1 || gh release create latest \
             --title "latest" \
             --notes "Скомпилированные rule-set'ы. Пересобираются автоматически, ассеты перезаписываются на месте."
-          gh release upload latest dist/domains.srs dist/subnets.srs dist/domains.trs dist/subnets.trs --clobber
+          gh release upload latest dist/*.srs dist/*.trs --clobber
           gh release edit latest --notes "Обновлено: $(date -u '+%Y-%m-%d %H:%M UTC') • $(git rev-parse --short HEAD)"

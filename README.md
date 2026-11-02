@@ -19,6 +19,11 @@ hodca, ovh, roblox, russia_inside, telegram, google_play) и `google.srs` от
 `domains.srs` + `subnets.srs` (sing-box) и `domains.trs` + `subnets.trs`
 (формат tachyon-core, грузится быстрее) в [Release `latest`](../../releases/latest).
 
+Отдельно собираются `russia-domains` и `russia-subnets` (.srs и .trs) — российские
+адреса для bypass-секции: geoip RU, белые списки runetfreedom и Tachyon, свои
+`data/own_ru_subnets.lst`. Эти же подсети вычитаются из `subnets`, чтобы
+российские сервисы с IP из реестров блокировок не уходили в туннель.
+
 ## Использование в Podkop
 
 ```

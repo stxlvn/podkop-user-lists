@@ -6,6 +6,7 @@
 Подсети перед записью схлопываются: podkop добавляет каждую строку subnets.srs
 в nftables-сет podkop_subnets построчно, с форком на строку, так что время
 старта роутера линейно зависит от числа строк."""
+import bisect
 import ipaddress
 import json
 import re
@@ -41,6 +42,22 @@ SUBNET_ONLY_EXTRA_URLS = [
 SUBNET_LST_URLS = [
     "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/subnets/ru_blocked.lst",
     "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/subnets/refilter.lst",
+]
+
+# «Россия напрямую» (как в форке fuyriz/podkop-user-lists): эти подсети
+# вычитаются из proxy-подсетей и публикуются отдельно для bypass-секции
+RU_DOMAIN_SRS_URLS = [
+    "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geosite/release/sing-box/category-ru.srs",
+]
+RU_SUBNET_SRS_URLS = [
+    "https://raw.githubusercontent.com/Loyalsoldier/geoip/release/srs/ru.srs",
+]
+RU_SUBNET_LST_URLS = [
+    "https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/text/ru.txt",
+    # это российские адреса из «белого списка» на время отключений, а не исключения
+    "https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/text/ru-whitelist.txt",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/subnets/ru_whitelist.lst",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/subnets/ru_domains.lst",
 ]
 
 
@@ -142,6 +159,61 @@ def read_subnet_lst(path):
     return found
 
 
+def subtract(subnets, removed):
+    """subnets минус removed по диапазонам адресов, результат снова в CIDR."""
+    out = set()
+    for version in (4, 6):
+        cut = sorted((int(n.network_address), int(n.broadcast_address))
+                     for n in (ipaddress.ip_network(c) for c in removed)
+                     if n.version == version)
+        merged = []
+        for lo, hi in cut:
+            if merged and lo <= merged[-1][1] + 1:
+                merged[-1][1] = max(merged[-1][1], hi)
+            else:
+                merged.append([lo, hi])
+        starts = [lo for lo, _ in merged]
+        addr = ipaddress.IPv4Address if version == 4 else ipaddress.IPv6Address
+        for c in subnets:
+            n = ipaddress.ip_network(c)
+            if n.version != version:
+                continue
+            lo, hi = int(n.network_address), int(n.broadcast_address)
+            i = max(bisect.bisect_right(starts, lo) - 1, 0)
+            cur = lo
+            while i < len(merged) and merged[i][0] <= hi:
+                clo, chi = merged[i]
+                if chi >= cur:
+                    if clo > cur:
+                        out.update(str(x) for x in ipaddress.summarize_address_range(addr(cur), addr(clo - 1)))
+                    cur = max(cur, chi + 1)
+                i += 1
+            if cur <= hi:
+                out.update(str(x) for x in ipaddress.summarize_address_range(addr(cur), addr(hi)))
+    return out
+
+
+def build_russia(domain_report, subnet_report):
+    domains, subnets = set(), set()
+    for i, url in enumerate(RU_DOMAIN_SRS_URLS):
+        srs, js = f"/tmp/rud{i}.srs", f"/tmp/rud{i}.json"
+        fetch(url, srs)
+        decompile(srs, js)
+        merge(source_label(url), extract_domains(js), domains, domain_report)
+    for i, url in enumerate(RU_SUBNET_SRS_URLS):
+        srs, js = f"/tmp/rus{i}.srs", f"/tmp/rus{i}.json"
+        fetch(url, srs)
+        decompile(srs, js)
+        merge(source_label(url), extract_subnets(js), subnets, subnet_report)
+    for i, url in enumerate(RU_SUBNET_LST_URLS):
+        lst = f"/tmp/rul{i}.lst"
+        fetch(url, lst)
+        merge(source_label(url), read_subnet_lst(lst), subnets, subnet_report)
+    merge("data/own_ru_subnets.lst", read_own_subnets("data/own_ru_subnets.lst"),
+          subnets, subnet_report)
+    return drop_covered_subdomains(domains), collapse(subnets)
+
+
 def merge(label, found, target, report):
     """Складывает найденное в target и запоминает вклад источника."""
     new = found - target
@@ -224,12 +296,25 @@ def main():
     print(f"  схлопнуто смежных/вложенных: {before_collapse - len(subnets)} "
           f"-> остаётся {len(subnets)}")
 
-    print(f"\nитого: {len(domains)} доменов, {len(subnets)} подсетей")
+    ru_domain_report, ru_subnet_report = [], []
+    ru_domains, ru_subnets = build_russia(ru_domain_report, ru_subnet_report)
+    print_report("РОССИЯ НАПРЯМУЮ: ДОМЕНЫ", ru_domain_report, len(ru_domains))
+    print_report("РОССИЯ НАПРЯМУЮ: ПОДСЕТИ", ru_subnet_report, len(ru_subnets))
+    before_ru = len(subnets)
+    subnets = collapse(subtract(subnets, ru_subnets))
+    print(f"  proxy-подсети после вычитания российских: {before_ru} -> {len(subnets)}")
+
+    print(f"\nитого: {len(domains)} доменов, {len(subnets)} подсетей; "
+          f"россия: {len(ru_domains)} доменов, {len(ru_subnets)} подсетей")
 
     json.dump({"version": 3, "rules": [{"domain_suffix": sorted(domains)}]},
               open("domains.json", "w"))
     json.dump({"version": 3, "rules": [{"ip_cidr": sorted(subnets, key=lambda x: (":" in x, x))}]},
               open("subnets.json", "w"))
+    json.dump({"version": 3, "rules": [{"domain_suffix": sorted(ru_domains)}]},
+              open("russia-domains.json", "w"))
+    json.dump({"version": 3, "rules": [{"ip_cidr": sorted(ru_subnets, key=lambda x: (":" in x, x))}]},
+              open("russia-subnets.json", "w"))
 
 
 if __name__ == "__main__":
