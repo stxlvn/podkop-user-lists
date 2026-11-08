@@ -48,6 +48,8 @@ jobs:
           tachyon-core version
 
       - name: Fetch upstream + merge with own lists
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/merge.py
 
       - name: Compile rule-sets

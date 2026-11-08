@@ -8,6 +8,7 @@
 старта роутера линейно зависит от числа строк."""
 import bisect
 import ipaddress
+import os
 import json
 import re
 import subprocess
@@ -123,10 +124,35 @@ def source_label(url):
     return f"{parts[3]}/{parts[-1]}" if len(parts) > 4 else url
 
 
+RELEASE_RE = re.compile(r"^https://github\.com/([^/]+/[^/]+)/releases/(?:latest/download|download/([^/]+))/([^/]+)$")
+_releases = {}
+
+
+def github_asset_url(url):
+    """Ссылку на файл релиза переводит на API-адрес ассета: веб-редирект
+    github.com/.../releases/... периодически отдаёт 504, а API — нет."""
+    m = RELEASE_RE.match(url)
+    if not m:
+        return url, {}
+    repo, tag, name = m.groups()
+    headers = {"Accept": "application/vnd.github+json"}
+    if os.environ.get("GITHUB_TOKEN"):
+        headers["Authorization"] = f"Bearer {os.environ['GITHUB_TOKEN']}"
+    key = (repo, tag)
+    if key not in _releases:
+        api = f"https://api.github.com/repos/{repo}/releases/" + (f"tags/{tag}" if tag else "latest")
+        with urllib.request.urlopen(urllib.request.Request(api, headers=headers), timeout=60) as r:
+            _releases[key] = {a["name"]: a["url"] for a in json.load(r)["assets"]}
+    return _releases[key][name], dict(headers, Accept="application/octet-stream")
+
+
 def fetch(url, dest, attempts=12):
     for n in range(attempts):
         try:
-            urllib.request.urlretrieve(url, dest)
+            real, headers = github_asset_url(url)
+            req = urllib.request.Request(real, headers=headers)
+            with urllib.request.urlopen(req, timeout=120) as r, open(dest, "wb") as f:
+                f.write(r.read())
             return
         except OSError as e:
             if n == attempts - 1:
