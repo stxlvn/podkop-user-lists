@@ -123,7 +123,7 @@ def source_label(url):
     return f"{parts[3]}/{parts[-1]}" if len(parts) > 4 else url
 
 
-def fetch(url, dest, attempts=5):
+def fetch(url, dest, attempts=12):
     for n in range(attempts):
         try:
             urllib.request.urlretrieve(url, dest)
@@ -131,8 +131,8 @@ def fetch(url, dest, attempts=5):
         except OSError as e:
             if n == attempts - 1:
                 raise
-            print(f"  {url}: {e}, повтор через {5 * (n + 1)} с")
-            time.sleep(5 * (n + 1))
+            print(f"  {url}: {e}, повтор через {min(5 * (n + 1), 30)} с")
+            time.sleep(min(5 * (n + 1), 30))
 
 
 def decompile(srs_path, json_path):
