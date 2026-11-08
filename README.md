@@ -24,6 +24,12 @@ hodca, ovh, roblox, russia_inside, telegram, google_play) и `google.srs` от
 `data/own_ru_subnets.lst`. Эти же подсети вычитаются из `subnets`, чтобы
 российские сервисы с IP из реестров блокировок не уходили в туннель.
 
+`russia-domains` — это отдельные российские домены (roscomvpn category-ru и whitelist,
+Tachyon geosite_ru, ru_only_inside, ru_whitelist) плюс зоны .ru/.su/.рф и другие
+российские TLD целиком. Зоны и широкие домены вроде ucoz.com матчатся логическим
+правилом «суффикс И НЕ домен из `domains` И адрес НЕ из `subnets`», так что
+заблокированные сайты в этих зонах по-прежнему уходят в туннель.
+
 ## Использование в Podkop
 
 ```

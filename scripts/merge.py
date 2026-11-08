@@ -11,6 +11,7 @@ import ipaddress
 import json
 import re
 import subprocess
+import time
 import urllib.request
 
 ITDOG_LISTS = [
@@ -48,7 +49,14 @@ SUBNET_LST_URLS = [
 # вычитаются из proxy-подсетей и публикуются отдельно для bypass-секции
 RU_DOMAIN_SRS_URLS = [
     "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geosite/release/sing-box/category-ru.srs",
+    "https://cdn.jsdelivr.net/gh/hydraponique/roscomvpn-geosite/release/sing-box/whitelist.srs",
 ]
+RU_DOMAIN_LST_URLS = [
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/domains/geosite_ru.lst",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/domains/ru_only_inside.lst",
+    "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/domains/ru_whitelist.lst",
+]
+RU_TLDS = {"ru", "su", "xn--p1ai"}
 RU_SUBNET_SRS_URLS = [
     "https://raw.githubusercontent.com/Loyalsoldier/geoip/release/srs/ru.srs",
 ]
@@ -115,8 +123,16 @@ def source_label(url):
     return f"{parts[3]}/{parts[-1]}" if len(parts) > 4 else url
 
 
-def fetch(url, dest):
-    urllib.request.urlretrieve(url, dest)
+def fetch(url, dest, attempts=5):
+    for n in range(attempts):
+        try:
+            urllib.request.urlretrieve(url, dest)
+            return
+        except OSError as e:
+            if n == attempts - 1:
+                raise
+            print(f"  {url}: {e}, повтор через {5 * (n + 1)} с")
+            time.sleep(5 * (n + 1))
 
 
 def decompile(srs_path, json_path):
@@ -143,6 +159,21 @@ def extract_subnets(json_path):
                 found.add(c)
             except ValueError:
                 pass  # битые фрагменты в апстриме — пропускаем
+    return found
+
+
+def read_domain_lst(path):
+    found = set()
+    for line in open(path, encoding="utf-8"):
+        s = line.split("#", 1)[0].strip().lower().lstrip(".")
+        if not s:
+            continue
+        try:
+            s = s.encode("idna").decode()
+        except UnicodeError:
+            continue
+        if "." not in s or (DOMAIN_RE.match(s) and all(len(p) <= 63 for p in s.split("."))):
+            found.add(s)
     return found
 
 
@@ -200,6 +231,10 @@ def build_russia(domain_report, subnet_report):
         fetch(url, srs)
         decompile(srs, js)
         merge(source_label(url), extract_domains(js), domains, domain_report)
+    for i, url in enumerate(RU_DOMAIN_LST_URLS):
+        lst = f"/tmp/rudl{i}.lst"
+        fetch(url, lst)
+        merge(source_label(url), read_domain_lst(lst), domains, domain_report)
     for i, url in enumerate(RU_SUBNET_SRS_URLS):
         srs, js = f"/tmp/rus{i}.srs", f"/tmp/rus{i}.json"
         fetch(url, srs)
@@ -211,7 +246,38 @@ def build_russia(domain_report, subnet_report):
         merge(source_label(url), read_subnet_lst(lst), subnets, subnet_report)
     merge("data/own_ru_subnets.lst", read_own_subnets("data/own_ru_subnets.lst"),
           subnets, subnet_report)
-    return drop_covered_subdomains(domains), collapse(subnets)
+    tlds = RU_TLDS | {d for d in domains if "." not in d}
+    domains = {d for d in domains if "." in d}
+    return drop_covered_subdomains(domains), tlds, collapse(subnets)
+
+
+def russia_domain_rules(ru_domains, tlds, proxy_domains, proxy_subnets):
+    """Российские зоны и домены напрямую, но всё, что есть в proxy-списке,
+    остаётся в туннеле: зоны (.ru/.su/.рф…) и широкие домены вроде ucoz.com,
+    под которыми лежат заблокированные сайты, идут логическим правилом
+    «суффикс И НЕ proxy-домен И адрес НЕ из proxy-подсетей» (сайты, которые
+    уходят в туннель только по IP, получают от DNS настоящий адрес). Отдельный домен, уже покрытый зоной и не
+    задевающий proxy-список, выкидывается как лишний."""
+    def ancestors(d):
+        parts = d.split(".")
+        return {".".join(parts[i:]) for i in range(1, len(parts))}
+
+    proxy_ancestors = set().union(*(ancestors(p) for p in proxy_domains))
+    broad = {d for d in ru_domains if d in proxy_ancestors and d not in proxy_domains}
+    plain = {d for d in ru_domains - broad
+             if d.rsplit(".", 1)[-1] not in tlds
+             or d in proxy_domains or ancestors(d) & proxy_domains}
+    group = tlds | broad
+    excl = {p for p in proxy_domains if ancestors(p) & group}
+    rules = [{"domain_suffix": sorted(plain)}]
+    zone = {"domain_suffix": sorted(group)}
+    zone = {"type": "logical", "mode": "and", "rules": [zone]}
+    if excl:
+        zone["rules"].append({"domain_suffix": sorted(excl), "invert": True})
+    zone["rules"].append({"ip_cidr": sorted(proxy_subnets, key=lambda x: (":" in x, x)),
+                          "invert": True})
+    rules.append(zone)
+    return rules, plain | broad, excl
 
 
 def merge(label, found, target, report):
@@ -297,21 +363,25 @@ def main():
           f"-> остаётся {len(subnets)}")
 
     ru_domain_report, ru_subnet_report = [], []
-    ru_domains, ru_subnets = build_russia(ru_domain_report, ru_subnet_report)
+    ru_domains, ru_tlds, ru_subnets = build_russia(ru_domain_report, ru_subnet_report)
     print_report("РОССИЯ НАПРЯМУЮ: ДОМЕНЫ", ru_domain_report, len(ru_domains))
     print_report("РОССИЯ НАПРЯМУЮ: ПОДСЕТИ", ru_subnet_report, len(ru_subnets))
     before_ru = len(subnets)
     subnets = collapse(subtract(subnets, ru_subnets))
     print(f"  proxy-подсети после вычитания российских: {before_ru} -> {len(subnets)}")
 
+    ru_rules, ru_specific, ru_excl = russia_domain_rules(ru_domains, ru_tlds, domains, subnets)
+    print(f"  зоны напрямую: {', '.join(sorted(ru_tlds))}; исключений из proxy-списка: {len(ru_excl)}; "
+          f"отдельных российских доменов: {len(ru_domains)} -> {len(ru_specific)}")
+
     print(f"\nитого: {len(domains)} доменов, {len(subnets)} подсетей; "
-          f"россия: {len(ru_domains)} доменов, {len(ru_subnets)} подсетей")
+          f"россия: {len(ru_specific)} доменов + {len(ru_tlds)} зон, {len(ru_subnets)} подсетей")
 
     json.dump({"version": 3, "rules": [{"domain_suffix": sorted(domains)}]},
               open("domains.json", "w"))
     json.dump({"version": 3, "rules": [{"ip_cidr": sorted(subnets, key=lambda x: (":" in x, x))}]},
               open("subnets.json", "w"))
-    json.dump({"version": 3, "rules": [{"domain_suffix": sorted(ru_domains)}]},
+    json.dump({"version": 3, "rules": ru_rules},
               open("russia-domains.json", "w"))
     json.dump({"version": 3, "rules": [{"ip_cidr": sorted(ru_subnets, key=lambda x: (":" in x, x))}]},
               open("russia-subnets.json", "w"))
