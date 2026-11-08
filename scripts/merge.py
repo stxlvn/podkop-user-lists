@@ -125,12 +125,16 @@ def source_label(url):
 
 
 RELEASE_RE = re.compile(r"^https://github\.com/([^/]+/[^/]+)/releases/(?:latest/download|download/([^/]+))/([^/]+)$")
+RAW_RE = re.compile(r"^https://github\.com/([^/]+/[^/]+)/raw/(?:refs/heads/)?(.+)$")
 _releases = {}
 
 
 def github_asset_url(url):
     """Ссылку на файл релиза переводит на API-адрес ассета: веб-редирект
     github.com/.../releases/... периодически отдаёт 504, а API — нет."""
+    raw = RAW_RE.match(url)
+    if raw:
+        return f"https://raw.githubusercontent.com/{raw.group(1)}/{raw.group(2)}", {}
     m = RELEASE_RE.match(url)
     if not m:
         return url, {}
