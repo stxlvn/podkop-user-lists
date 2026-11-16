@@ -59,7 +59,8 @@ jobs:
           sing-box rule-set compile subnets.json -o dist/subnets.srs
           tachyon-core rule-set compile domains.json -o dist/domains.trs
           tachyon-core rule-set compile subnets.json -o dist/subnets.trs
-          for f in russia-domains russia-subnets; do
+          for f in russia-domains russia-subnets ai-domains ai-subnets; do
+            [ -f $f.json ] || continue
             sing-box rule-set compile $f.json -o dist/$f.srs
             tachyon-core rule-set compile $f.json -o dist/$f.trs
           done

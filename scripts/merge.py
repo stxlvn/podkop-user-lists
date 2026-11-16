@@ -17,7 +17,7 @@ import urllib.request
 
 ITDOG_LISTS = [
     "cloudflare", "cloudfront", "digitalocean", "meta", "discord",
-    "google_ai", "hetzner", "hodca", "ovh", "roblox", "russia_inside",
+    "hetzner", "hodca", "ovh", "roblox", "russia_inside",
     "telegram", "google_play",
 ]
 ITDOG_URL = "https://github.com/itdoginfo/allow-domains/releases/latest/download/{}.srs"
@@ -29,6 +29,11 @@ DOMAIN_ONLY_EXTRA_URLS = [
     "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/microsoft.srs",
     "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/google.srs",
     "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/sing-box/geoblock.srs",
+]
+
+# AI-сервисы — отдельные ai-domains/ai-subnets для своей секции; из общих списков вычитаются
+AI_ITDOG_LISTS = ["google_ai"]
+AI_DOMAIN_SRS_URLS = [
     "https://raw.githubusercontent.com/Dushnilin/tachyon-lists/main/release/sing-box/ai_all.srs",
 ]
 
@@ -281,6 +286,24 @@ def build_russia(domain_report, subnet_report):
     return drop_covered_subdomains(domains), tlds, collapse(subnets)
 
 
+def build_ai(domain_report, subnet_report):
+    domains, subnets = set(), set()
+    for name in AI_ITDOG_LISTS:
+        srs, js = f"/tmp/ai_{name}.srs", f"/tmp/ai_{name}.json"
+        fetch(ITDOG_URL.format(name), srs)
+        decompile(srs, js)
+        merge(f"itdoginfo/{name}", extract_domains(js), domains, domain_report)
+        merge(f"itdoginfo/{name}", extract_subnets(js), subnets, subnet_report)
+    for i, url in enumerate(AI_DOMAIN_SRS_URLS):
+        srs, js = f"/tmp/aid{i}.srs", f"/tmp/aid{i}.json"
+        fetch(url, srs)
+        decompile(srs, js)
+        merge(source_label(url), extract_domains(js), domains, domain_report)
+    merge("data/own_ai_domains.lst", read_own_domains("data/own_ai_domains.lst"),
+          domains, domain_report)
+    return drop_covered_subdomains(domains), collapse(subnets)
+
+
 def russia_domain_rules(ru_domains, tlds, proxy_domains, proxy_subnets):
     """Российские зоны и домены напрямую, но всё, что есть в proxy-списке,
     остаётся в туннеле: зоны (.ru/.su/.рф…) и широкие домены вроде ucoz.com,
@@ -392,6 +415,18 @@ def main():
     print(f"  схлопнуто смежных/вложенных: {before_collapse - len(subnets)} "
           f"-> остаётся {len(subnets)}")
 
+    ai_domain_report, ai_subnet_report = [], []
+    ai_domains, ai_subnets = build_ai(ai_domain_report, ai_subnet_report)
+    print_report("AI: ДОМЕНЫ", ai_domain_report, len(ai_domains))
+    print_report("AI: ПОДСЕТИ", ai_subnet_report, len(ai_subnets))
+    def under_ai(d):
+        parts = d.split(".")
+        return any(".".join(parts[i:]) in ai_domains for i in range(len(parts) - 1))
+    before_ai = len(domains)
+    domains = {d for d in domains if not under_ai(d)}
+    subnets = collapse(subtract(subnets, ai_subnets))
+    print(f"  из общих доменов убрано AI: {before_ai - len(domains)}; подсетей после вычитания AI: {len(subnets)}")
+
     ru_domain_report, ru_subnet_report = [], []
     ru_domains, ru_tlds, ru_subnets = build_russia(ru_domain_report, ru_subnet_report)
     print_report("РОССИЯ НАПРЯМУЮ: ДОМЕНЫ", ru_domain_report, len(ru_domains))
@@ -400,17 +435,25 @@ def main():
     subnets = collapse(subtract(subnets, ru_subnets))
     print(f"  proxy-подсети после вычитания российских: {before_ru} -> {len(subnets)}")
 
-    ru_rules, ru_specific, ru_excl = russia_domain_rules(ru_domains, ru_tlds, domains, subnets)
+    ai_subnets = collapse(subtract(ai_subnets, ru_subnets))
+    ru_rules, ru_specific, ru_excl = russia_domain_rules(
+        ru_domains, ru_tlds, domains | ai_domains, collapse(subnets | ai_subnets))
     print(f"  зоны напрямую: {', '.join(sorted(ru_tlds))}; исключений из proxy-списка: {len(ru_excl)}; "
           f"отдельных российских доменов: {len(ru_domains)} -> {len(ru_specific)}")
 
     print(f"\nитого: {len(domains)} доменов, {len(subnets)} подсетей; "
+          f"AI: {len(ai_domains)} доменов, {len(ai_subnets)} подсетей; "
           f"россия: {len(ru_specific)} доменов + {len(ru_tlds)} зон, {len(ru_subnets)} подсетей")
 
     json.dump({"version": 3, "rules": [{"domain_suffix": sorted(domains)}]},
               open("domains.json", "w"))
     json.dump({"version": 3, "rules": [{"ip_cidr": sorted(subnets, key=lambda x: (":" in x, x))}]},
               open("subnets.json", "w"))
+    json.dump({"version": 3, "rules": [{"domain_suffix": sorted(ai_domains)}]},
+              open("ai-domains.json", "w"))
+    if ai_subnets:
+        json.dump({"version": 3, "rules": [{"ip_cidr": sorted(ai_subnets, key=lambda x: (":" in x, x))}]},
+                  open("ai-subnets.json", "w"))
     json.dump({"version": 3, "rules": ru_rules},
               open("russia-domains.json", "w"))
     json.dump({"version": 3, "rules": [{"ip_cidr": sorted(ru_subnets, key=lambda x: (":" in x, x))}]},

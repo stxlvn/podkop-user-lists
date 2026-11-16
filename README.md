@@ -30,6 +30,10 @@ Tachyon geosite_ru, ru_only_inside, ru_whitelist) плюс зоны .ru/.su/.р�
 правилом «суффикс И НЕ домен из `domains` И адрес НЕ из `subnets`», так что
 заблокированные сайты в этих зонах по-прежнему уходят в туннель.
 
+Отдельно собираются `ai-domains` (и `ai-subnets`, если у источников есть подсети) —
+AI-сервисы (itdoginfo `google_ai`, Dushnilin `ai_all`, свой `data/own_ai_domains.lst`)
+для своей секции с отдельным маршрутом. Из `domains`/`subnets` они вычитаются.
+
 ## Использование в Podkop
 
 ```
