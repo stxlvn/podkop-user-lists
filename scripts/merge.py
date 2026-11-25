@@ -431,6 +431,8 @@ def main():
     ru_domains, ru_tlds, ru_subnets = build_russia(ru_domain_report, ru_subnet_report)
     print_report("РОССИЯ НАПРЯМУЮ: ДОМЕНЫ", ru_domain_report, len(ru_domains))
     print_report("РОССИЯ НАПРЯМУЮ: ПОДСЕТИ", ru_subnet_report, len(ru_subnets))
+    own_subnets = set(read_own_subnets("data/own_subnets.lst"))
+    ru_subnets = collapse(subtract(ru_subnets, own_subnets))
     before_ru = len(subnets)
     subnets = collapse(subtract(subnets, ru_subnets))
     print(f"  proxy-подсети после вычитания российских: {before_ru} -> {len(subnets)}")

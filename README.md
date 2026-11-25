@@ -22,7 +22,9 @@ hodca, ovh, roblox, russia_inside, telegram, google_play) и `google.srs` от
 Отдельно собираются `russia-domains` и `russia-subnets` (.srs и .trs) — российские
 адреса для bypass-секции: geoip RU, белые списки runetfreedom и Tachyon, свои
 `data/own_ru_subnets.lst`. Эти же подсети вычитаются из `subnets`, чтобы
-российские сервисы с IP из реестров блокировок не уходили в туннель.
+российские сервисы с IP из реестров блокировок не уходили в туннель. Подсети из
+`data/own_subnets.lst` из этого вычитания исключены: явно добавленное своё
+всегда идёт в туннель.
 
 `russia-domains` — это отдельные российские домены (roscomvpn category-ru и whitelist,
 Tachyon geosite_ru, ru_only_inside, ru_whitelist) плюс зоны .ru/.su/.рф и другие
