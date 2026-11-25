@@ -1,25 +1,19 @@
+# Epic Games (лаунчер, вход)
 account-public-service-prod03.ol.epicgames.com
-account.samsung.com
 accountportal-website-prod07.ol.epicgames.com
 accounts.epicgames.com
-api.samsungadhub.com
-apps.samsung.com
-catalog.sf.dl.delivery.mp.microsoft.com
-docs.google.com
-dreamerscast.com
-drive.google.com
-drive.usercontent.google.com
 entitlement-public-service-prod08.ol.epicgames.com
-googleusercontent.com
-img-config.samsungapps.com
 launcher-public-service-prod06.ol.epicgames.com
 launcherwaitingroom-public-service-prod06.ol.epicgames.com
+
+# Samsung (магазин приложений, аккаунт, ТВ)
+account.samsung.com
+api.samsungadhub.com
+apps.samsung.com
+img-config.samsungapps.com
 lcprd1.samsungadhub.com
 log-config.samsungadhub.com
-losslessclub.com
-o.pki.goog
 ott.samsungadhub.com
-rutracker.ru
 samsungapps.com
 samsungcloudsolution.com
 samsungcloudsolution.net
@@ -27,20 +21,34 @@ samsungosp.com
 vd.samsungadhub.com
 video.sacdnssedge.com
 www.samsungotn.net
-dmanga.xyz
+
+# Google: Документы, Диск, сертификаты
+docs.google.com
+drive.google.com
+drive.usercontent.google.com
+googleusercontent.com
+o.pki.goog
+
+# Microsoft Store
+catalog.sf.dl.delivery.mp.microsoft.com
+
+# Reddit
 redd.it
+redditinc.com
 redditmedia.com
 redditstatic.com
 reddituploads.com
-redditinc.com
+
+# Docker
 docker.com
 docker.io
 dockerstatic.com
-pinimg.com
-archive.org
+
+# Steam / Valve
 s.team
-steamcdn-a.akamaihd.net
 steam-chat.com
+steam.tv
+steamcdn-a.akamaihd.net
 steamchina.com
 steamcommunity.com
 steamcontent.com
@@ -48,8 +56,15 @@ steamdeck.com
 steamgames.com
 steampowered.com
 steamserver.net
-steamstatic.com
 steamstat.us
-steam.tv
+steamstatic.com
 steamusercontent.com
 valvesoftware.com
+
+# Прочие сайты
+archive.org
+dmanga.xyz
+dreamerscast.com
+losslessclub.com
+pinimg.com
+rutracker.ru
